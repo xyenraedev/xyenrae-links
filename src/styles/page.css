@@ -1,0 +1,671 @@
+/*
+ * Tokens first, then layout, then boot, then motion state.
+ *
+ * The page is dark because it is opened from inside TikTok, which is a dark
+ * app. There is no blur anywhere: the glow comes from radial gradients, and
+ * `filter: blur()` is a real source of scroll jank on mid-range phones.
+ */
+:root {
+  --void: #08090a;
+  --surface: #121316;
+  --raise: #1b1d21;
+  --edge: #2a2d33;
+  --ink: #f2f3f5;
+  --muted: #8a8f98;
+  --cyan: #25f4ee;
+  --magenta: #fe2c55;
+  --live: #4ade80;
+
+  --sans: "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --display: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--sans);
+
+  --gutter: 20px;
+  --measure: 30rem;
+
+  /* Written by motion.ts: pointer position inside the hero, normalised. */
+  --lx: 0.5;
+  --ly: 0.5;
+  /* Scroll progress of the specimen section, 0..1. */
+  --spec: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scrollbar-gutter: stable;
+  background: var(--void);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+main {
+  flex: 1;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--cyan);
+  color: var(--void);
+}
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ---------- shared bits ---------- */
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+  flex: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 18%, transparent);
+}
+
+.eyebrow {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Section heading plus a count, so the page states its own scale honestly
+   instead of hiding that there is one project today. */
+.group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.group-head__count {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- boot ---------- */
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.boot__panel {
+  position: absolute;
+  inset-inline: 0;
+  height: 50%;
+  background: var(--void);
+}
+
+.boot__panel--top {
+  top: 0;
+  border-bottom: 1px solid var(--edge);
+}
+
+.boot__panel--bottom {
+  bottom: 0;
+}
+
+.boot__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.boot__mark {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.boot__count {
+  font-family: var(--display);
+  font-weight: 300;
+  font-size: clamp(3.4rem, 18vw, 5.2rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Without JS the boot screen must not exist at all: the content behind it is
+   the whole page. `motion` is set by an inline script before first paint. */
+html:not(.motion) .boot {
+  display: none;
+}
+
+html:not(.booted) .boot {
+  /* Only a first visit, with motion available, shows the intro. */
+}
+
+html.booted .boot {
+  display: none;
+}
+
+/* Only while the intro is actually running may it swallow pointer events, so a
+   tap can skip it. Once booted it is out of the hit test entirely. */
+html.motion:not(.booted) .boot {
+  pointer-events: auto;
+}
+
+/* ---------- identity ---------- */
+
+.identity {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.85rem;
+  background: var(--void);
+  border-bottom: 1px solid var(--edge);
+}
+
+.identity__name {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: default;
+  font-variant-ligatures: none;
+}
+
+.identity__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  position: relative;
+  padding-block: 2.4rem 1.6rem;
+  isolation: isolate;
+  /* The light fields are wider than the column by design. Without clipping they
+     extend past the viewport and make the whole page scrollable sideways, which
+     is exactly the bug that showed up at 320px. `clip` does not create a scroll
+     container, so it cannot trap anything. */
+  overflow: clip;
+}
+
+/* Two light fields that follow the pointer. Gradients only: a blur would be
+   the obvious way to soften these, and it is banned (and janky). */
+.hero__light {
+  position: absolute;
+  z-index: -1;
+  width: 22rem;
+  height: 22rem;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    color-mix(in srgb, var(--cyan) 26%, transparent) 0%,
+    transparent 68%
+  );
+  transform: translate3d(calc(var(--lx) * 16rem - 9rem), calc(var(--ly) * 12rem - 6rem), 0);
+  will-change: transform;
+}
+
+.hero__light--b {
+  left: auto;
+  right: 0;
+  background: radial-gradient(
+    circle at center,
+    color-mix(in srgb, var(--magenta) 24%, transparent) 0%,
+    transparent 68%
+  );
+  transform: translate3d(calc(var(--lx) * -12rem + 6rem), calc(var(--ly) * -9rem + 4rem), 0);
+}
+
+.hero__canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.masthead {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.5rem, 11vw, 4rem);
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.masthead span {
+  display: block;
+}
+
+.lede {
+  margin: 1rem 0 0;
+  max-width: 32ch;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.lede strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 1.1rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+/* ---------- primary action ---------- */
+
+.cta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding: 0.95rem 1rem;
+  min-height: 56px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--raise), var(--surface));
+  overflow: hidden;
+  isolation: isolate;
+  transition: border-color 220ms ease-out;
+}
+
+/* The accent edge is painted by the pointer position: it enters from the side
+   the finger arrived from. `--edge-x` is written by motion.ts. */
+.cta::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    100deg,
+    var(--cyan),
+    color-mix(in srgb, var(--cyan) 30%, var(--magenta)) 50%,
+    var(--magenta)
+  );
+  opacity: 0;
+  transition: opacity 260ms ease-out;
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+.cta:hover::before,
+.cta:focus-visible::before,
+.cta:active::before {
+  opacity: 1;
+}
+
+.cta__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.cta__label {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: -0.015em;
+}
+
+.cta__hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.cta__mark {
+  margin-left: auto;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--ink);
+  transition: transform 260ms cubic-bezier(0.2, 0, 0, 1), color 200ms ease-out;
+}
+
+.cta:hover .cta__mark,
+.cta:focus-visible .cta__mark {
+  transform: translate3d(4px, -4px, 0);
+  color: var(--cyan);
+}
+
+/* ---------- ticker ---------- */
+
+.ticker {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  margin-block: 0.4rem 1.6rem;
+  padding-block: 0.6rem;
+  border-block: 1px solid var(--edge);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  /* Fades the edges into the page without blur. */
+  -webkit-mask: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.ticker__track {
+  display: flex;
+  gap: 0.9rem;
+  flex: none;
+  padding-right: 0.9rem;
+  will-change: transform;
+}
+
+.ticker__sep {
+  color: var(--magenta);
+}
+
+/* ---------- index rows ---------- */
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  position: relative;
+  border-bottom: 1px solid var(--edge);
+}
+
+.row:first-child {
+  border-top: 1px solid var(--edge);
+}
+
+.row__link {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding-block: 1rem;
+  min-height: 64px;
+  isolation: isolate;
+}
+
+/* A row without a number (contact) keeps the same left edge as a numbered one.
+   The gap is already 0.8rem, so only the number's own width is added here —
+   padding it by both made the contact row sit visibly deeper than the list. */
+.row__link:not(:has(.row__num)) {
+  padding-left: 2.4rem;
+}
+
+/* Glow enters from the side the pointer came from. */
+.row__link::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(-1 * var(--gutter));
+  z-index: -1;
+  background: radial-gradient(
+    12rem 6rem at var(--edge-x, 50%) 50%,
+    color-mix(in srgb, var(--cyan) 12%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+
+.row__link:hover::before,
+.row__link:focus-visible::before {
+  opacity: 1;
+}
+
+.row__num {
+  flex: none;
+  width: 1.6rem;
+  /* Sits on the label's baseline, not the centre of the whole block. */
+  line-height: 1.35;
+  font-family: var(--display);
+  font-weight: 300;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.row__label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.02rem;
+  letter-spacing: -0.015em;
+}
+
+.row__hint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.row__meta {
+  font-size: 0.7rem;
+  color: var(--muted);
+  opacity: 0.8;
+  overflow-wrap: anywhere;
+}
+
+.row__mark {
+  margin-left: auto;
+  align-self: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 240ms cubic-bezier(0.2, 0, 0, 1), color 200ms ease-out;
+}
+
+.row__link:hover .row__mark,
+.row__link:focus-visible .row__mark {
+  transform: translate3d(3px, -3px, 0);
+  color: var(--cyan);
+}
+
+/* ---------- specimen ---------- */
+
+.specimen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  margin-block: 3.5rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--edge);
+  overflow: hidden;
+}
+
+.specimen__word {
+  /* Driven by scroll, one property at a time. Only `wght` is animated: the
+     width axis costs 88 KB of extra font for an effect almost nobody sees. */
+  font-family: var(--display);
+  font-weight: calc(200 + var(--spec) * 600);
+  font-size: clamp(2.6rem, 15vw, 4.6rem);
+  line-height: 0.9;
+  letter-spacing: calc(-0.02em - var(--spec) * 0.03em);
+  color: var(--ink);
+  transition: color 200ms linear;
+}
+
+.specimen__word:nth-child(2) {
+  color: color-mix(in srgb, var(--ink) calc(100% - var(--spec) * 100%), var(--magenta));
+}
+
+.specimen__caption {
+  margin-top: 0.9rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- outro ---------- */
+
+.outro {
+  position: relative;
+  margin-block: 2rem 0;
+  padding-block: 2rem 1.5rem;
+  border-top: 1px solid var(--edge);
+  transform-origin: center top;
+}
+
+.outro__title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 9vw, 3rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  margin: 0 0 0.4rem;
+  text-wrap: balance;
+}
+
+.outro__sub {
+  margin: 0 0 1.2rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  max-width: 30ch;
+}
+
+/* ---------- footer ---------- */
+
+.foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.1rem 1.6rem;
+  border-top: 1px solid var(--edge);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.foot__host {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- pressed ---------- */
+
+.press {
+  transition: transform 120ms ease-out;
+}
+
+.press:active {
+  transform: scale(0.97);
+}
+
+/* ---------- narrow phones ---------- */
+
+@media (max-width: 340px) {
+  :root {
+    --gutter: 16px;
+  }
+
+  .row__num {
+    width: 1.3rem;
+  }
+}
+
+/* ---------- reduced motion ---------- */
+
+/* Everything above is layout and static appearance, so it survives untouched.
+   What is removed here is only the motion: no boot, no light drift, no
+   specimen scaling. The page is complete without any of it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .hero__light {
+    transform: none;
+  }
+
+  .specimen__word {
+    font-weight: 700;
+    letter-spacing: -0.045em;
+  }
+
+  .boot {
+    display: none;
+  }
+}
